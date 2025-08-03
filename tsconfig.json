@@ -1,0 +1,26 @@
+{
+	"compilerOptions": {
+		"target": "ES2021",
+		"module": "commonjs",
+		"strict": false,
+		"strictPropertyInitialization": false,
+		"esModuleInterop": true,
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"baseUrl": "src",
+		"outDir": "dist",
+		"rootDirs": [
+			"src", 
+		],
+		"paths": {
+		  "@/*": ["*"],
+		}
+	},
+	"ts-node": {
+		"files": true
+	},
+	"include": ["./src/**/*.ts", "./types/**/*.d.ts", "./src/swagger-output.json",],
+	"exclude": ["**/node_modules", "**/build", "**/dist"]
+}

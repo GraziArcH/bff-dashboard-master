@@ -1,0 +1,74 @@
+image: atlassian/default-image:3
+options:
+  docker: true
+
+definitions:
+  services:
+    docker:
+      memory: 3072
+
+pipelines:
+  branches:
+    staging:
+      - step:
+          name: Dependency Vulnerability Scanning
+          image: aquasec/trivy:latest
+          script:
+            # Scan for vulnerabilities in dependencies
+            - echo "Scanning application dependencies for vulnerabilities..."
+            #- trivy fs --exit-code 1 --severity HIGH,CRITICAL .
+            - trivy fs --severity HIGH,CRITICAL .
+
+      - step:
+          name: Docker Build and Push Image
+          image: digitalocean/doctl:latest
+          script:
+            # Verify environment variables
+            - if [ -z "$DIGITAL_OCEAN_KEY" ]; then echo "DIGITAL_OCEAN_KEY is missing"; exit 1; fi
+
+            # Authenticate with Docker registry
+            - echo $DIGITAL_OCEAN_KEY | docker login registry.digitalocean.com -u doctl --password-stdin
+
+            # Build and push Docker image
+            - docker build --progress=plain -t $CONTAINER_REPOSITORY:${BITBUCKET_COMMIT} .
+            - docker push $CONTAINER_REPOSITORY:${BITBUCKET_COMMIT}
+
+      - step:
+          name: Sign Docker Image
+          image: chainguard/cosign:latest
+          script:
+            # Verify environment variables
+            - if [ -z "$COSIGN_PRIVATE_KEY" ]; then echo "COSIGN_PRIVATE_KEY is missing"; exit 1; fi
+            - if [ -z "$COSIGN_PASSWORD" ]; then echo "COSIGN_PASSWORD is missing"; exit 1; fi
+
+            # Decode and save Cosign private key
+            - echo "$COSIGN_PRIVATE_KEY" | base64 -d > cosign.key
+
+            # Authenticate with Docker registry
+            - echo $DIGITAL_OCEAN_KEY | docker login registry.digitalocean.com -u doctl --password-stdin
+
+            # Set Cosign password
+            - export COSIGN_PASSWORD="$COSIGN_PASSWORD"
+
+            # Sign the Docker image
+            - cosign sign --yes --key cosign.key $CONTAINER_REPOSITORY:${BITBUCKET_COMMIT}
+
+            # Cleanup
+            - rm -f cosign.key
+
+      - step:
+          name: Security Report Generation
+          image: aquasec/trivy:latest
+          script:
+            - echo $DIGITAL_OCEAN_KEY | docker login registry.digitalocean.com -u doctl --password-stdin
+
+            # Generate a security report
+            - echo "Generating security report..."
+            - trivy image $CONTAINER_REPOSITORY:${BITBUCKET_COMMIT} --format table --output security_report.txt
+
+            - echo "Uploading security report..."
+            - mkdir -p artifacts
+            - mv security_report.txt artifacts/
+
+          artifacts:
+            - artifacts/security_report.txt

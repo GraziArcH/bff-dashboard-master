@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+
+  bff-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: bff-dashboard
+    restart: always
+    env_file:
+      - .env
